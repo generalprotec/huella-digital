@@ -1,2 +1,0 @@
-# huella-digital
-huella-digital
