@@ -1,111 +1,110 @@
 const https = require('https');
 
-const HIBP_KEY = process.env.HIBP_API_KEY || '';
-
 function fetch(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'HuellaDigital/1.0', Accept: 'application/json' }, timeout: 12000 }, (res) => {
+    https.get(url, {
+      headers: { 'User-Agent': 'HuellaDigital/1.0', Accept: 'application/json' },
+      timeout: 10000
+    }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
         if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
-        try { resolve(JSON.parse(data)); } catch { resolve(data); }
+        try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); }
       });
-    }).on('error', reject);
+    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('Timeout')); });
   });
 }
 
-function fetchRDAP(domain) {
-  const tld = domain.split('.').pop().toLowerCase();
-  const urls = {
-    com: 'https://rdap.verisign.com/com/v1/domain/',
-    net: 'https://rdap.verisign.com/net/v1/domain/',
-    org: 'https://rdap.publicinterestregistry.org/rdap/domain/',
-    info: 'https://rdap.afilias.net/rdap/domain/',
-    io: 'https://rdap.nic.io/domain/',
-    co: 'https://rdap.nic.co/domain/',
-    dev: 'https://rdap.nic.dev/domain/',
-    app: 'https://rdap.nic.app/domain/',
-    cloud: 'https://rdap.nic.cloud/domain/',
-    es: 'https://rdap.nic.es/domain/',
-  };
-  const url = urls[tld] ? urls[tld] + domain : `https://rdap.org/domain/${domain}`;
-  return fetch(url);
-}
-
-function extractEntity(data) {
-  if (!data || !data.entities) return null;
-  for (const e of data.entities) {
-    const roles = (e.roles || []).map(r => r.toLowerCase());
-    if (roles.includes('registrant') || roles.includes('administrative') || !e.roles || e.roles.length === 0) {
-      const vcard = e.vcardArray && e.vcardArray[1] || [];
-      const get = (n) => { const f = vcard.find(v => v[0] === n); return f ? f[3] || f[1] || '' : ''; };
-      return {
-        name: get('fn'),
-        org: get('org'),
-        email: get('email'),
-        phone: get('tel'),
-        address: (get('adr') && typeof get('adr') === 'object') ? [get('adr').filter(v => v && v !== '').join(', ')].filter(Boolean).join(' ') : get('adr'),
-        role: e.roles ? e.roles.join(', ') : 'registrant',
-      };
+function extractCompany(rdap) {
+  if (!rdap || !rdap.entities) return null;
+  for (const e of rdap.entities) {
+    const vc = e.vcardArray;
+    if (!vc || !Array.isArray(vc) || vc[0] !== 'vcard' || !Array.isArray(vc[1])) continue;
+    const props = vc[1];
+    const get = (name) => {
+      const p = props.find(x => x[0] === name);
+      if (!p) return '';
+      return typeof p[3] === 'string' ? p[3] : typeof p[1] === 'string' ? p[1] : '';
+    };
+    const name = get('fn');
+    const org = get('org');
+    const email = get('email');
+    const phone = get('tel');
+    const adrProp = props.find(x => x[0] === 'adr');
+    let address = '';
+    if (adrProp) {
+      const val = typeof adrProp[3] === 'object' && adrProp[3] ? adrProp[3]
+                  : typeof adrProp[1] === 'object' && adrProp[1] ? adrProp[1]
+                  : [];
+      address = Array.isArray(val) ? val.filter(v => v && String(v).trim()).join(', ') : String(val);
+    }
+    if (org || name) {
+      return { organization: org || name, name, email, phone, address: address || get('adr') };
     }
   }
   return null;
 }
 
-async function queryHIBP(domain) {
-  if (!HIBP_KEY) return [];
-  try {
-    const data = await fetch(`https://haveibeenpwned.com/api/v3/breaches?domain=${domain}`);
-    return Array.isArray(data) ? data.map(b => ({ name: b.Name, date: b.BreachDate, count: b.PwnCount || '?' })) : [];
-  } catch { return []; }
-}
-
 module.exports = async (req, res) => {
   const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // GET para test
+  if (req.method === 'GET') {
+    const testDomain = req.query.domain || 'google.com';
+    return testRDAP(testDomain, res);
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   let domain = ((req.body && (req.body.domain || req.body.d)) || '').trim().toLowerCase();
   domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
   if (!domain || !domain.includes('.')) return res.status(400).json({ error: 'Dominio inválido' });
 
-  const result = { domain, timestamp: new Date().toISOString(), company: null, breaches: [] };
+  return testRDAP(domain, res);
+};
+
+async function testRDAP(domain, res) {
+  const result = { domain, timestamp: new Date().toISOString(), company: null, error: null };
 
   try {
-    const [rdap, hibp] = await Promise.all([
-      fetchRDAP(domain).catch(() => null),
-      queryHIBP(domain),
-    ]);
-    result.breaches = hibp;
+    const tld = domain.split('.').pop();
+    const rdapUrls = {
+      com: 'https://rdap.verisign.com/com/v1/domain/',
+      net: 'https://rdap.verisign.com/net/v1/domain/',
+      org: 'https://rdap.publicinterestregistry.org/rdap/domain/',
+      info: 'https://rdap.afilias.net/rdap/domain/',
+      io: 'https://rdap.nic.io/domain/',
+      co: 'https://rdap.nic.co/domain/',
+      es: 'https://rdap.nic.es/domain/',
+      dev: 'https://rdap.nic.dev/domain/',
+      app: 'https://rdap.nic.app/domain/',
+      cloud: 'https://rdap.nic.cloud/domain/',
+    };
+    const url = rdapUrls[tld] ? rdapUrls[tld] + domain : `https://rdap.org/domain/${domain}`;
 
-    if (rdap) {
-      const events = rdap.events || [];
-      const ev = (n) => { const e = events.find(v => v.eventAction === n); return e ? e.eventDate : ''; };
-      result.company = {
-        name: rdap.rdapConformance ? (extractEntity(rdap) || {}).org || (extractEntity(rdap) || {}).name || rdap.name || '' : rdap.name || '',
-        organization: (extractEntity(rdap) || {}).org || (extractEntity(rdap) || {}).name || '',
-        email: (extractEntity(rdap) || {}).email || '',
-        phone: (extractEntity(rdap) || {}).phone || '',
-        address: (extractEntity(rdap) || {}).address || '',
-        contacts: (rdap.entities || []).map(e => {
-          const v = e.vcardArray && e.vcardArray[1] || [];
-          const g = (n) => { const f = v.find(x => x[0] === n); return f ? f[3] || f[1] || '' : ''; };
-          return { role: (e.roles || []).join(', '), name: g('fn'), email: g('email') };
-        }).filter(c => c.name || c.email),
-        registrar: rdap.port43 ? rdap.port43.replace('whois.', '').replace('.whois-servers.net', '') : '',
-        nameservers: (rdap.nameservers || []).map(n => n.ldhName || n),
-        creationDate: ev('registration'),
-        expiryDate: ev('expiration'),
-        lastChanged: ev('last changed'),
-      };
+    const rdapData = await fetch(url);
+    result.company = extractCompany(rdapData);
+
+    if (rdapData.events) {
+      const ev = (n) => { const e = rdapData.events.find(x => x.eventAction === n); return e ? e.eventDate : ''; };
+      if (!result.company) result.company = {};
+      result.company.creationDate = ev('registration');
+      result.company.expiryDate = ev('expiration');
+      result.company.registrar = (rdapData.port43 || '').replace('whois.', '').replace('.whois-servers.net', '');
+      result.company.nameservers = (rdapData.nameservers || []).map(n => n.ldhName || n);
     }
+
+    if (!result.company) result.error = 'No se encontraron datos de empresa en RDAP';
+
   } catch (e) {
     result.error = e.message;
   }
 
   res.json(result);
-};
+}
+
