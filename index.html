@@ -1,1 +1,53 @@
-
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Huella Corporativa</title></head>
+<body style="font-family:sans-serif;background:#f0f2f5;padding:40px;color:#1a1a2e">
+<h1>Huella Corporativa</h1>
+<p>Introduce un dominio:</p>
+<input type="text" id="d" value="microsoft.com" style="padding:8px;width:300px">
+<button id="b" style="padding:8px 16px">Buscar</button>
+<div id="r" style="margin-top:20px;white-space:pre-wrap;font-family:monospace;font-size:13px;background:#fff;padding:16px;border-radius:8px"></div>
+<script>
+document.getElementById('b').onclick=async()=>{
+const dom=document.getElementById('d').value.trim().toLowerCase();
+const map={com:'https://rdap.verisign.com/com/v1/domain/',net:'https://rdap.verisign.com/net/v1/domain/',org:'https://rdap.publicinterestregistry.org/rdap/domain/'};
+const tld=dom.split('.').pop();
+const url=(map[tld]||'https://rdap.org/domain/')+dom;
+try{
+const r=await fetch(url);
+const j=await r.json();
+let txt='';
+const ent=j.entities||[];
+for(const e of ent){
+if((e.roles||[]).includes('registrant')){
+const v=e.vcardArray[1];
+for(const p of v){
+if(p[0]!=='version'&&p[0]!=='contact-uri'){
+txt+=p[0]+': '+(typeof p[3]==='string'?p[3]:JSON.stringify(p[3]))+'\n';
+}
+}
+}
+}
+const link=j.links?j.links.find(l=>l.rel==='related'):null;
+if(!txt&&link&&link.href){
+const r2=await fetch(link.href);
+const j2=await r2.json();
+for(const e of j2.entities||[]){
+if((e.roles||[]).includes('registrant')){
+const v=e.vcardArray[1];
+for(const p of v){
+if(p[0]!=='version'&&p[0]!=='contact-uri'){
+txt+=p[0]+': '+(typeof p[3]==='string'?p[3]:JSON.stringify(p[3]))+'\n';
+}
+}
+}
+}
+}
+document.getElementById('r').textContent=txt||'No se encontraron datos del registrante';
+}catch(e){
+document.getElementById('r').textContent='Error: '+e.message;
+}
+};
+</script>
+</body>
+</html>
