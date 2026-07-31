@@ -148,6 +148,9 @@ module.exports = async function handler(req, res) {
     data.tld = tld;
     data.server = server;
     data.raw = raw.slice(0, 4000);
+    if (tld === 'es' && !data.found) {
+      data.error = 'WHOIS de .es restringido por Red.es (exige IP autorizada)';
+    }
     const directFailed = (!data.found && (data.error || !raw.trim()));
     if (directFailed && tld !== 'es') {
       const alt = await otiWhois(domain);
@@ -158,10 +161,11 @@ module.exports = async function handler(req, res) {
     }
     res.json(data);
   } catch (e) {
-    if (tld !== 'es') {
-      const alt = await otiWhois(domain);
-      if (alt && !alt.error) return res.json(fromOti(alt, domain, tld));
+    if (tld === 'es') {
+      return res.status(502).json({ domain, found: false, error: 'WHOIS de .es restringido por Red.es (exige IP autorizada)' });
     }
+    const alt = await otiWhois(domain);
+    if (alt && !alt.error) return res.json(fromOti(alt, domain, tld));
     res.status(502).json({ domain, found: false, error: String((e && e.message) || e) });
   }
 };
