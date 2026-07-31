@@ -40,9 +40,13 @@ function parse(raw) {
     found: false, org: '', name: '', email: '', phone: '', address: '',
     created: '', expires: '', registrar: '', nameservers: []
   };
-  const hasDomain = /domain name:\s*\S+/i.test(raw);
-  const notFound = /(not found|no data found|no matching|no object|no entries|is available|available for registration|no registrado|no existe|not registered|is free|error[^\r\n]*404)/i.test(raw);
-  if (!hasDomain || (notFound && hasDomain)) return res;
+  const blocked = /(not authorised|not authorized|is not authorised|ip address[^\r\n]*not[^\r\n]*authoris|request access to the service)/i;
+  if (blocked.test(raw)) {
+    res.error = 'el registro exige IP autorizada';
+    return res;
+  }
+  const notFound = /(^|\r?\n)\s*%?\s*(no entries found|no match for|not found|no data found|no matching record|the queried object does not exist|object does not exist|is not registered|domain not found|no such domain|not been registered|no registrado|no existe|does not exist)\b/i;
+  if (notFound.test(raw)) return res;
   res.found = true;
 
   const pick = (re) => { const m = raw.match(re); return m ? clean(m[1]) : ''; };
@@ -65,14 +69,15 @@ function parse(raw) {
   }
 
   const label = (name) => {
-    const re = new RegExp('(?:^|\\n)\\s*' + name + '\\s*[:.]?\\s*([^\\r\\n]+)', 'i');
+    const re = new RegExp('(?:^|\\r?\\n)\\s*' + name + '\\b\\s*[:.]?\\s*([^\\r\\n]+)', 'i');
     const m = block.match(re) || raw.match(re);
     return m ? clean(m[1]) : '';
   };
 
   res.name = label('Name');
-  res.org = label('Organization') || label('Company') || label('Company name') ||
-            label('Empresa') || label('Registrant name') || label('Titular') || label('Domain owner');
+  res.org = label('Organization') || label('Organisation') || label('Company') ||
+            label('Company name') || label('Empresa') || label('Registrant name') ||
+            label('Titular') || label('Domain owner') || label('Organisation name');
   res.email = label('E-mail') || label('Email') || label('e-mail');
   res.phone = label('Phone') || label('Tel') || label('Teléfono');
   res.address = [label('Address'), label('City'), label('Postal'), label('Province'), label('Country')]
