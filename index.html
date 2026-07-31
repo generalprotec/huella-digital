@@ -77,7 +77,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="st"><div class="sp"></div><p>Consultando RDAP...</p></div>
 <div id="err"></div>
 <div id="res"></div>
-<footer class="ft">Datos reales vía RDAP · Sin servidor · Sin almacenamiento</footer>
+<footer class="ft">Datos reales vía RDAP + WHOIS · Sin servidor propio · Sin almacenamiento</footer>
 </div>
 
 <script>
@@ -107,6 +107,8 @@ if (!r.ok) throw new Error('HTTP '+r.status);
 return r.json();
 }
 
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function extract(rdap){
 if (!rdap||!rdap.entities) return null;
 for (const e of rdap.entities){
@@ -133,54 +135,67 @@ let d = di.value.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/\/.*$/
 if (!d||!d.includes('.')) return;
 sb.disabled=true; sb.textContent='Buscando...';
 res.style.display='none'; err.style.display='none'; st.style.display='block';
-try {
-  const tld = d.split('.').pop();
-  const u = tld==='com' ? 'https://rdap.verisign.com/com/v1/domain/'+d :
-           tld==='org' ? 'https://rdap.publicinterestregistry.org/rdap/domain/'+d :
-           tld==='net' ? 'https://rdap.verisign.com/net/v1/domain/'+d :
-           'https://rdap.org/domain/'+d;
-  const r1 = await fetchJ(u);
-  let co = extract(r1);
-  if (!co){
-    const link = r1.links ? r1.links.find(l=>l.rel==='related'&&l.href) : null;
-    if (link && link.href){
-      const r2 = await fetchJ(link.href);
-      co = extract(r2);
+const tld = d.split('.').pop();
+let co = null, created = '', expires = '', ns = [], source = 'rdap', raw = '', notif = '';
+if (tld==='com' || tld==='net' || tld==='org'){
+  try {
+    const u = tld==='com' ? 'https://rdap.verisign.com/com/v1/domain/'+d :
+             tld==='org' ? 'https://rdap.publicinterestregistry.org/rdap/domain/'+d :
+             'https://rdap.verisign.com/net/v1/domain/'+d;
+    const r1 = await fetchJ(u);
+    co = extract(r1);
+    if (!co){
+      const link = r1.links ? r1.links.find(l=>l.rel==='related'&&l.href) : null;
+      if (link && link.href){
+        const r2 = await fetchJ(link.href);
+        co = extract(r2);
+      }
     }
-  }
-  st.style.display='none';
-  const ev = n => { const e = (r1.events||[]).find(x=>x.eventAction===n); return e?e.eventDate.substring(0,10):''; };
-  const ns = getNS(r1);
-  show(d, co, ev('registration'), ev('expiration'), ns);
-} catch(e){
-  st.style.display='none';
-  err.textContent = 'Error: '+e.message+'. Mostrando datos simulados.';
-  err.style.display='block';
-  show(d, null, '', '', []);
+    const ev = n => { const e = (r1.events||[]).find(x=>x.eventAction===n); return e?e.eventDate.substring(0,10):''; };
+    created = ev('registration'); expires = ev('expiration'); ns = getNS(r1);
+  } catch(e) { co = null; }
 }
+if (!co){
+  source = 'whois';
+  try {
+    const r = await fetch('/api/whois?domain='+encodeURIComponent(d));
+    const j = await r.json();
+    if (j && j.found){
+      co = { organization: j.org || j.name, name: j.name || j.org, email: j.email, phone: j.phone, address: j.address };
+      created = j.created || ''; expires = j.expires || ''; ns = j.nameservers || [];
+      raw = j.raw || '';
+    } else {
+      notif = (j && j.error) ? ' ('+j.error+')' : '';
+    }
+  } catch(e) { notif = ' (servicio WHOIS no disponible)'; }
+}
+st.style.display='none';
+show(d, co, created, expires, ns, source, raw, notif);
 sb.disabled=false; sb.textContent='Buscar';
 }
 
-function show(d, co, created, expires, ns){
-const real = co && (co.organization);
+function show(d, co, created, expires, ns, source, raw, notif){
+const real = co && (co.organization || co.name || raw);
 let html = '';
 if (real){
-  const hasPrivacy = (!co.email || !co.phone) && co.organization;
+  const orgName = co.organization || co.name || d;
+  const hasPrivacy = (!co.email && !co.phone) && orgName !== d;
   html += `<div class="cc">
-<div class="nm">${co.organization} <span class="tg rl">REAL</span>${hasPrivacy?' <span style="font-size:.65rem;color:#94a3b8;font-weight:400">(privacidad WHOIS: datos de contacto ocultos)</span>':''}</div>
+<div class="nm">${esc(orgName)} <span class="tg rl">REAL</span>${hasPrivacy?' <span style="font-size:.65rem;color:#94a3b8;font-weight:400">(datos de contacto ocultos o no expuestos)</span>':''}</div>
 <div class="mg">
-${co.email?`<div class="mi"><div class="l">Email</div><div class="v m">${co.email}</div></div>`:''}
-${co.phone?`<div class="mi"><div class="l">Teléfono</div><div class="v m">${co.phone}</div></div>`:''}
-${co.address?`<div class="mi"><div class="l">Dirección</div><div class="v">${co.address}</div></div>`:''}
-${created?`<div class="mi"><div class="l">Registro dominio</div><div class="v m">${created}</div></div>`:''}
-${expires?`<div class="mi"><div class="l">Expira</div><div class="v m">${expires}</div></div>`:''}
-${ns.length?`<div class="mi"><div class="l">Nameservers</div><div class="v m" style="font-size:.7rem">${ns.join('\n')}</div></div>`:''}
+${co.email?`<div class="mi"><div class="l">Email</div><div class="v m">${esc(co.email)}</div></div>`:''}
+${co.phone?`<div class="mi"><div class="l">Teléfono</div><div class="v m">${esc(co.phone)}</div></div>`:''}
+${co.address?`<div class="mi"><div class="l">Dirección</div><div class="v">${esc(co.address)}</div></div>`:''}
+${created?`<div class="mi"><div class="l">Registro dominio</div><div class="v m">${esc(created)}</div></div>`:''}
+${expires?`<div class="mi"><div class="l">Expira</div><div class="v m">${esc(expires)}</div></div>`:''}
+${ns.length?`<div class="mi"><div class="l">Nameservers</div><div class="v m" style="font-size:.7rem">${ns.map(esc).join('\n')}</div></div>`:''}
 </div>
+${raw?`<details class="hs" style="margin-top:14px"><summary style="cursor:pointer;font-size:.8rem;font-weight:700;color:#7b2ff7">Ver WHOIS completo (fuente: ${source==='whois'?'registro/Red.es':'RDAP'})</summary><pre style="white-space:pre-wrap;font-family:monospace;font-size:.68rem;color:#475569;background:#f8fafc;padding:12px;border-radius:8px;margin-top:8px;max-height:260px;overflow:auto">${esc(raw)}</pre></details>`:''}
 </div>`;
 } else {
   html += `<div class="cc">
-<div class="nm">${d} <span class="tg sm">SIMULADO</span></div>
-<p style="font-size:.78rem;color:#64748b;margin-top:8px;line-height:1.4">No se pudieron obtener datos reales. El RDAP de este dominio no expone información de la empresa (privacidad WHOIS o TLD no soportado).</p>
+<div class="nm">${esc(d)} <span class="tg sm">SIMULADO</span></div>
+<p style="font-size:.78rem;color:#64748b;margin-top:8px;line-height:1.4">No se pudieron obtener datos reales de la empresa para este dominio. Causas habituales: privacidad WHOIS, TLD sin RDAP ni WHOIS accesible${notif?', o '+esc(notif.slice(2)):''}.</p>
 </div>`;
 }
 
@@ -196,7 +211,8 @@ html += `<div class="st">Otra información pública de la empresa <span class="s
 </div>
 
 <div class="hs"><h3>Fuentes de donde se obtienen</h3>
-<div class="hi"><b>RDAP</b> — Nombre, email, teléfono, dirección del registrante ✅ consultado en tiempo real</div>
+<div class="hi"><b>RDAP</b> — .com, .net, .org y gTLD con RDAP — ✅ consultado en tiempo real</div>
+<div class="hi"><b>WHOIS</b> — .es (Red.es) y TLDs sin RDAP — ✅ consultado en tiempo real vía API</div>
 <div class="hi"><b>Registro Mercantil</b> — Administradores, cuentas, accionistas — presencial o API de pago</div>
 <div class="hi"><b>BORME / BOE</b> — Nombramientos, subvenciones, concursos — gratuito online</div>
 <div class="hi"><b>OEPM / EUIPO</b> — Marcas, patentes, diseños — buscador gratuito</div>
