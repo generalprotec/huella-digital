@@ -33,6 +33,7 @@ function fromOti(j, domain, tld) {
     tld: tld,
     server: (j && j._source) || 'OTI Labs (RapidAPI)',
     source: 'OTI Labs (RapidAPI)',
+    otiReady: !!OTI_KEY,
     raw: JSON.stringify(j || {}, null, 2)
   };
   if (!has) data.error = 'sin datos';
@@ -140,7 +141,7 @@ module.exports = async function handler(req, res) {
   try {
     const server = await resolveServer(tld);
     if (!server) {
-      return res.json({ domain, found: false, error: 'no whois server for .' + tld });
+      return res.json({ domain, found: false, error: 'no whois server for .' + tld, otiReady: !!OTI_KEY });
     }
     const raw = await whois(server, domain, 9000);
     const data = parse(raw);
@@ -148,6 +149,7 @@ module.exports = async function handler(req, res) {
     data.tld = tld;
     data.server = server;
     data.raw = raw.slice(0, 4000);
+    data.otiReady = !!OTI_KEY;
     if (tld === 'es' && !data.found) {
       data.error = 'WHOIS de .es restringido por Red.es (exige IP autorizada)';
     }
@@ -162,10 +164,10 @@ module.exports = async function handler(req, res) {
     res.json(data);
   } catch (e) {
     if (tld === 'es') {
-      return res.status(502).json({ domain, found: false, error: 'WHOIS de .es restringido por Red.es (exige IP autorizada)' });
+      return res.status(502).json({ domain, found: false, error: 'WHOIS de .es restringido por Red.es (exige IP autorizada)', otiReady: !!OTI_KEY });
     }
     const alt = await otiWhois(domain);
     if (alt && !alt.error) return res.json(fromOti(alt, domain, tld));
-    res.status(502).json({ domain, found: false, error: String((e && e.message) || e) });
+    res.status(502).json({ domain, found: false, error: String((e && e.message) || e), otiReady: !!OTI_KEY });
   }
 };
