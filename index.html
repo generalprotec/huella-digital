@@ -1,53 +1,216 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Huella Corporativa</title></head>
-<body style="font-family:sans-serif;background:#f0f2f5;padding:40px;color:#1a1a2e">
-<h1>Huella Corporativa</h1>
-<p>Introduce un dominio:</p>
-<input type="text" id="d" value="microsoft.com" style="padding:8px;width:300px">
-<button id="b" style="padding:8px 16px">Buscar</button>
-<div id="r" style="margin-top:20px;white-space:pre-wrap;font-family:monospace;font-size:13px;background:#fff;padding:16px;border-radius:8px"></div>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Huella Corporativa</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+.bg{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0f0c29,#1a1a2e,#16213e);z-index:-1}
+.wrap{max-width:960px;margin:0 auto;padding:20px;position:relative;z-index:1}
+.hd{background:rgba(255,255,255,.06);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:36px;text-align:center;margin-bottom:20px}
+.hd h1{font-size:1.5rem;font-weight:800;color:#fff}
+.hd h1 span{background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hd p{color:rgba(255,255,255,.5);font-size:.82rem;margin-top:8px}
+.sr{display:flex;gap:8px;max-width:500px;margin:18px auto 0}
+.sr input{flex:1;padding:11px 15px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-size:.9rem;outline:none}
+.sr input:focus{border-color:#7b2ff7}
+.sr input::placeholder{color:rgba(255,255,255,.25)}
+.sr button{padding:11px 22px;border-radius:10px;border:none;background:linear-gradient(135deg,#00d4ff,#7b2ff7);color:#fff;font-weight:600;font-size:.85rem;cursor:pointer}
+.sr button:disabled{opacity:.4;cursor:not-allowed}
+#st{display:none;text-align:center;padding:30px;color:rgba(255,255,255,.5)}
+#st .sp{width:26px;height:26px;border:3px solid rgba(255,255,255,.1);border-top-color:#7b2ff7;border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#err{display:none;background:#fee2e2;border-radius:12px;padding:16px 20px;margin:16px 0;color:#dc2626;font-size:.85rem}
+#res{display:none}
+.cc{background:#fff;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cc .nm{font-size:1.2rem;font-weight:800}
+.cc .nm .tg{display:inline-block;font-size:.6rem;font-weight:600;padding:3px 9px;border-radius:5px;margin-left:8px;vertical-align:middle}
+.tg.rl{background:#dcfce7;color:#16a34a}
+.tg.sm{background:#fef9c3;color:#ca8a04}
+.cc .mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:16px}
+.cc .mi{padding:10px 12px;background:#f8fafc;border-radius:8px}
+.cc .mi .l{font-size:.62rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.cc .mi .v{font-size:.82rem;font-weight:600;margin-top:3px;word-break:break-all}
+.cc .mi .v.m{font-family:monospace;font-size:.75rem;font-weight:400}
+.st{font-size:1rem;font-weight:700;margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+.st .sb{font-size:.68rem;font-weight:400;color:#94a3b8}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.cd{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.05);border-top:3px solid;transition:.15s}
+.cd:hover{box-shadow:0 4px 15px rgba(0,0,0,.07);transform:translateY(-1px)}
+.ci{font-size:1.2rem;margin-bottom:5px}
+.cd h3{font-size:.82rem;font-weight:700;margin-bottom:4px}
+.cd p{font-size:.72rem;color:#64748b;line-height:1.4}
+.tgs{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+.tg2{padding:2px 7px;border-radius:4px;font-size:.6rem;font-weight:500}
+.tg2.r{background:#fee2e2;color:#dc2626}
+.tg2.o{background:#ffedd5;color:#ea580c}
+.tg2.y{background:#fef9c3;color:#ca8a04}
+.tg2.b{background:#dbeafe;color:#2563eb}
+.tg2.gy{background:#f1f5f9;color:#64748b}
+.cd.p{border-color:#dc2626}
+.cd.f{border-color:#ca8a04}
+.cd.l{border-color:#ea580c}
+.cd.d{border-color:#2563eb}
+.cd.i{border-color:#16a34a}
+.hs{background:#fff;border-radius:12px;padding:20px;margin:14px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.hs h3{font-size:.88rem;font-weight:700;margin-bottom:10px}
+.hi{padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:.78rem;color:#475569;line-height:1.4}
+.hi:last-child{border:none}
+.hi b{color:#7b2ff7}
+.ft{text-align:center;padding:24px 0;color:rgba(255,255,255,.2);font-size:.7rem}
+@media print{body{background:#fff}.bg,.hd,.sr,#st,.ft{display:none}#res{display:block!important}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="wrap">
+<div class="hd">
+<h1><span>Huella Corporativa</span></h1>
+<p>Introduce un dominio y obtén datos reales de la empresa desde RDAP</p>
+<div class="sr">
+<input type="text" id="di" placeholder="ejemplo.com" value="microsoft.com">
+<button id="sb">Buscar</button>
+</div>
+</div>
+<div id="st"><div class="sp"></div><p>Consultando RDAP...</p></div>
+<div id="err"></div>
+<div id="res"></div>
+<footer class="ft">Datos reales vía RDAP · Sin servidor · Sin almacenamiento</footer>
+</div>
+
 <script>
-document.getElementById('b').onclick=async()=>{
-const dom=document.getElementById('d').value.trim().toLowerCase();
-const map={com:'https://rdap.verisign.com/com/v1/domain/',net:'https://rdap.verisign.com/net/v1/domain/',org:'https://rdap.publicinterestregistry.org/rdap/domain/'};
-const tld=dom.split('.').pop();
-const url=(map[tld]||'https://rdap.org/domain/')+dom;
-try{
-const r=await fetch(url);
-const j=await r.json();
-let txt='';
-const ent=j.entities||[];
-for(const e of ent){
-if((e.roles||[]).includes('registrant')){
-const v=e.vcardArray[1];
-for(const p of v){
-if(p[0]!=='version'&&p[0]!=='contact-uri'){
-txt+=p[0]+': '+(typeof p[3]==='string'?p[3]:JSON.stringify(p[3]))+'\n';
+const $=id=>document.getElementById(id);
+const di=$('di'),sb=$('sb'),st=$('st'),err=$('err'),res=$('res');
+
+
+
+const cards = [
+  {ic:'👤',t:'Administradores',d:'Registro Mercantil: nombres, cargos y poderes de cada directivo.',c:'p',tg:[['Crítico','r'],['Público','gy']]},
+  {ic:'💰',t:'Accionistas',d:'Distribución del capital, socios mayoritarios y participaciones.',c:'p',tg:[['Alto','o'],['Registro','gy']]},
+  {ic:'📊',t:'Cuentas Anuales',d:'Balance, P&G, deuda, tesorería. Depositadas en el Registro.',c:'f',tg:[['Público','b'],['Financiero','gy']]},
+  {ic:'👥',t:'Empleados',d:'Plantilla, LinkedIn, patrón de email. Base del phishing.',c:'p',tg:[['Alto','o'],['Phishing','r']]},
+  {ic:'📄',t:'Contratos Públicos',d:'Adjudicaciones, importes, clientes y duración.',c:'f',tg:[['Medio','y'],['Contratación','gy']]},
+  {ic:'⚖️',t:'Procedimientos',d:'Demandas, embargos, concursos. Historial legal.',c:'l',tg:[['Alto','o'],['CEN','gy']]},
+  {ic:'🏢',t:'Filiales',d:'Empresas del grupo, participaciones y vinculadas.',c:'d',tg:[['Medio','y'],['Grupo','gy']]},
+  {ic:'🏠',t:'Inmuebles',d:'Sedes, almacenes, bienes registrados.',c:'d',tg:[['Medio','y'],['Registro','gy']]},
+  {ic:'📜',t:'Marcas y Patentes',d:'Propiedad industrial registrada (OEPM/EUIPO).',c:'i',tg:[['Público','b'],['OEPM','gy']]},
+  {ic:'👁️',t:'UBO',d:'Titularidad real: quién controla realmente.',c:'l',tg:[['Crítico','r'],['Registro','gy']]},
+  {ic:'🔗',t:'Proveedores',d:'Cadena de suministro deducible de contratos.',c:'d',tg:[['Medio','y'],['Supply','gy']]},
+  {ic:'📰',t:'Reputación',d:'Noticias, reseñas, crisis pasadas.',c:'d',tg:[['Bajo','g'],['Monitor','gy']]},
+];
+
+async function fetchJ(u){
+const r = await fetch(u);
+if (!r.ok) throw new Error('HTTP '+r.status);
+return r.json();
 }
+
+function extract(rdap){
+if (!rdap||!rdap.entities) return null;
+for (const e of rdap.entities){
+if (!e.roles||!e.roles.map(r=>r.toLowerCase()).includes('registrant')) continue;
+const vc = e.vcardArray;
+if (!vc||!Array.isArray(vc)||vc[0]!=='vcard'||!Array.isArray(vc[1])) continue;
+const p = vc[1];
+const g = n => { const f = p.find(x=>x[0]===n); return f ? (typeof f[3]==='string'?f[3]:'') : ''; };
+const org = g('org');
+const fn = g('fn');
+if (!org && !fn) continue;
+const ad = p.find(x=>x[0]==='adr'); let addr='';
+if (ad){ const v = ad[3]; addr = Array.isArray(v) ? v.filter(x=>x&&!String(x).includes('REDACTED')).join(', ') : (typeof v==='string'&&!v.includes('REDACTED')?v:''); }
+const em = g('email'); const ph = g('tel');
+return { organization: org||fn, name: fn!==org?fn:'', email: em&&!em.includes('REDACTED')?em:'', phone: ph&&!ph.includes('REDACTED')?ph:'', address: addr };
 }
+return null;
 }
+
+function getNS(rdap){ return (rdap.nameservers||[]).map(n=>n.ldhName||n).filter(Boolean); }
+
+async function scan(){
+let d = di.value.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/\/.*$/,'').replace(/^www\./,'');
+if (!d||!d.includes('.')) return;
+sb.disabled=true; sb.textContent='Buscando...';
+res.style.display='none'; err.style.display='none'; st.style.display='block';
+try {
+  const tld = d.split('.').pop();
+  const u = tld==='com' ? 'https://rdap.verisign.com/com/v1/domain/'+d :
+           tld==='org' ? 'https://rdap.publicinterestregistry.org/rdap/domain/'+d :
+           tld==='net' ? 'https://rdap.verisign.com/net/v1/domain/'+d :
+           'https://rdap.org/domain/'+d;
+  const r1 = await fetchJ(u);
+  let co = extract(r1);
+  if (!co){
+    const link = r1.links ? r1.links.find(l=>l.rel==='related'&&l.href) : null;
+    if (link && link.href){
+      const r2 = await fetchJ(link.href);
+      co = extract(r2);
+    }
+  }
+  st.style.display='none';
+  const ev = n => { const e = (r1.events||[]).find(x=>x.eventAction===n); return e?e.eventDate.substring(0,10):''; };
+  const ns = getNS(r1);
+  show(d, co, ev('registration'), ev('expiration'), ns);
+} catch(e){
+  st.style.display='none';
+  err.textContent = 'Error: '+e.message+'. Mostrando datos simulados.';
+  err.style.display='block';
+  show(d, null, '', '', []);
 }
-const link=j.links?j.links.find(l=>l.rel==='related'):null;
-if(!txt&&link&&link.href){
-const r2=await fetch(link.href);
-const j2=await r2.json();
-for(const e of j2.entities||[]){
-if((e.roles||[]).includes('registrant')){
-const v=e.vcardArray[1];
-for(const p of v){
-if(p[0]!=='version'&&p[0]!=='contact-uri'){
-txt+=p[0]+': '+(typeof p[3]==='string'?p[3]:JSON.stringify(p[3]))+'\n';
+sb.disabled=false; sb.textContent='Buscar';
 }
+
+function show(d, co, created, expires, ns){
+const real = co && (co.organization);
+let html = '';
+if (real){
+  const hasPrivacy = (!co.email || !co.phone) && co.organization;
+  html += `<div class="cc">
+<div class="nm">${co.organization} <span class="tg rl">REAL</span>${hasPrivacy?' <span style="font-size:.65rem;color:#94a3b8;font-weight:400">(privacidad WHOIS: datos de contacto ocultos)</span>':''}</div>
+<div class="mg">
+${co.email?`<div class="mi"><div class="l">Email</div><div class="v m">${co.email}</div></div>`:''}
+${co.phone?`<div class="mi"><div class="l">Teléfono</div><div class="v m">${co.phone}</div></div>`:''}
+${co.address?`<div class="mi"><div class="l">Dirección</div><div class="v">${co.address}</div></div>`:''}
+${created?`<div class="mi"><div class="l">Registro dominio</div><div class="v m">${created}</div></div>`:''}
+${expires?`<div class="mi"><div class="l">Expira</div><div class="v m">${expires}</div></div>`:''}
+${ns.length?`<div class="mi"><div class="l">Nameservers</div><div class="v m" style="font-size:.7rem">${ns.join('\n')}</div></div>`:''}
+</div>
+</div>`;
+} else {
+  html += `<div class="cc">
+<div class="nm">${d} <span class="tg sm">SIMULADO</span></div>
+<p style="font-size:.78rem;color:#64748b;margin-top:8px;line-height:1.4">No se pudieron obtener datos reales. El RDAP de este dominio no expone información de la empresa (privacidad WHOIS o TLD no soportado).</p>
+</div>`;
 }
+
+html += `<div class="st">Otra información pública de la empresa <span class="sb">(simulación educativa)</span></div>
+<div class="g">${cards.map(c=>`<div class="cd ${c.c}"><div class="ci">${c.ic}</div><h3>${c.t}</h3><p>${c.d}</p><div class="tgs">${c.tg.map(t=>`<span class="tg2 ${t[1]}">${t[0]}</span>`).join('')}</div></div>`).join('')}</div>
+
+<div class="hs"><h3>Cómo lo usa un atacante</h3>
+<div class="hi"><b>CRÍTICO</b> — Suplantación corporativa: con CIF y datos reales abre cuentas bancarias a nombre de la empresa.</div>
+<div class="hi"><b>CRÍTICO</b> — Whaling: conoce al CEO/CFO reales y envía correos falsos pidiendo transferencias.</div>
+<div class="hi"><b>ALTO</b> — Ingeniería social: con el patrón de email suplanta a IT/RRHH para obtener credenciales.</div>
+<div class="hi"><b>ALTO</b> — Fraude financiero: falsifica facturas con datos reales de clientes y proveedores.</div>
+<div class="hi"><b>MEDIO</b> — Inteligencia competitiva: analiza contratos, precios y patentes.</div>
+</div>
+
+<div class="hs"><h3>Fuentes de donde se obtienen</h3>
+<div class="hi"><b>RDAP</b> — Nombre, email, teléfono, dirección del registrante ✅ consultado en tiempo real</div>
+<div class="hi"><b>Registro Mercantil</b> — Administradores, cuentas, accionistas — presencial o API de pago</div>
+<div class="hi"><b>BORME / BOE</b> — Nombramientos, subvenciones, concursos — gratuito online</div>
+<div class="hi"><b>OEPM / EUIPO</b> — Marcas, patentes, diseños — buscador gratuito</div>
+<div class="hi"><b>LinkedIn</b> — Empleados, organigrama, cargos — scraping público</div>
+<div class="hi"><b>Plataforma Contratación</b> — Contratos públicos y licitaciones</div>
+</div>`;
+
+res.innerHTML = html;
+res.style.display = 'block';
+res.scrollIntoView({behavior:'smooth'});
 }
-}
-}
-document.getElementById('r').textContent=txt||'No se encontraron datos del registrante';
-}catch(e){
-document.getElementById('r').textContent='Error: '+e.message;
-}
-};
+
+sb.addEventListener('click', scan);
+di.addEventListener('keydown', e => { if (e.key === 'Enter') scan(); });
 </script>
 </body>
 </html>
