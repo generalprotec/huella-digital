@@ -2,6 +2,43 @@ const net = require('net');
 
 const TLD_SERVERS = { es: 'whois.nic.es' };
 
+const OTI_HOST = 'domain-intelligence-api.p.rapidapi.com';
+const OTI_KEY = process.env.RAPIDAPI_KEY || '';
+
+async function otiWhois(domain) {
+  if (!OTI_KEY) return null;
+  const url = 'https://' + OTI_HOST + '/domain/' + encodeURIComponent(domain) + '/whois';
+  const r = await fetch(url, {
+    headers: {
+      'X-RapidAPI-Host': OTI_HOST,
+      'X-RapidAPI-Key': OTI_KEY,
+      Accept: 'application/json'
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  return await r.json();
+}
+
+function fromOti(j, domain, tld) {
+  const has = !!(j && (j.ldhName || j.created || j.expires || j.registrar ||
+    (Array.isArray(j.nameservers) && j.nameservers.length)));
+  const data = {
+    found: has,
+    org: '', name: '', email: '', phone: '', address: '',
+    created: (j && j.created) || '',
+    expires: (j && j.expires) || '',
+    registrar: (j && j.registrar) || '',
+    nameservers: (j && Array.isArray(j.nameservers)) ? j.nameservers : [],
+    domain: domain,
+    tld: tld,
+    server: (j && j._source) || 'OTI Labs (RapidAPI)',
+    source: 'OTI Labs (RapidAPI)',
+    raw: JSON.stringify(j || {}, null, 2)
+  };
+  if (!has) data.error = 'sin datos';
+  return data;
+}
+
 function whois(server, query, timeout) {
   return new Promise((resolve, reject) => {
     let sock;
@@ -111,8 +148,20 @@ module.exports = async function handler(req, res) {
     data.tld = tld;
     data.server = server;
     data.raw = raw.slice(0, 4000);
+    const directFailed = (!data.found && (data.error || !raw.trim()));
+    if (directFailed && tld !== 'es') {
+      const alt = await otiWhois(domain);
+      if (alt && !alt.error) {
+        const mapped = fromOti(alt, domain, tld);
+        if (mapped.found) return res.json(mapped);
+      }
+    }
     res.json(data);
   } catch (e) {
+    if (tld !== 'es') {
+      const alt = await otiWhois(domain);
+      if (alt && !alt.error) return res.json(fromOti(alt, domain, tld));
+    }
     res.status(502).json({ domain, found: false, error: String((e && e.message) || e) });
   }
 };
